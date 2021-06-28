@@ -60,7 +60,7 @@ OptionParser.new do |opts|
   end
 
   opts.on("--src SOURCE", "Include all sources in a tree.") do |source|
-    if not Dir.exist? headers
+    if not Dir.exist? source
       $stderr.puts "'#{source}' is not a valid directory."
       exit -1
     end
@@ -68,7 +68,25 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-puts trees[:headers]
+# TODO: Is there a cleaner way to do this?
+# TODO: Should I even be using a hash map for these few options?
+
+could_include = []
+trees[:sources].each do |h|
+  could_include += Dir.glob("#{h.chomp '/'}/**/*.h")
+end
+
+must_include = []
+trees[:headers].each do |h|
+  must_include += Dir.glob("#{h.chomp '/'}/**/*.h")
+end
+
+trees[:sources].each do |s|
+  must_include += Dir.glob("#{s.chomp '/'}/**/*.c")
+end
+
+puts "Could include:\n\n#{could_include}\n\n"
+puts "Must include:\n\n#{must_include}\n\n"
 
 # Walk --headers and --src trees, making sets and alphabetical
 # (including subdir prefix) lists of all files referenced.
