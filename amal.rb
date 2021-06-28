@@ -37,6 +37,39 @@
 #    directories, include all header files as well. It should be
 #    possible to specify each option more than once.]
 
+require 'optparse'
+
+trees = Hash.new {|h, k| h[k] = []}
+
+ARGV << '--help' if ARGV.empty?
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: amal.rb [options]"
+
+  opts.on('-h', '--help', "Display this help.") do
+    $stderr.puts opts
+    exit -1
+  end
+
+  opts.on("--headers HEADERS", "Include all headers in a tree.") do |headers|
+    if not Dir.exist? headers
+      $stderr.puts "'#{headers}' is not a valid directory."
+      exit -1
+    end
+    trees[:headers].append headers
+  end
+
+  opts.on("--src SOURCE", "Include all sources in a tree.") do |source|
+    if not Dir.exist? headers
+      $stderr.puts "'#{source}' is not a valid directory."
+      exit -1
+    end
+    trees[:sources].append source
+  end
+end.parse!
+
+puts trees[:headers]
+
 # Walk --headers and --src trees, making sets and alphabetical
 # (including subdir prefix) lists of all files referenced.
 
