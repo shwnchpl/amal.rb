@@ -92,8 +92,8 @@ trees[:sources].each do |s|
   must_include += Dir.glob("#{s.clean_path}/**/*.c")
 end
 
-puts "Could include:\n\n#{could_include}\n\n"
-puts "Must include:\n\n#{must_include}\n\n"
+# puts "Could include:\n\n#{could_include}\n\n"
+# puts "Must include:\n\n#{must_include}\n\n"
 
 # Walk --headers and --src trees, making sets and alphabetical
 # (including subdir prefix) lists of all files referenced.
@@ -115,15 +115,58 @@ all_paths.each do |p|
   end
 end
 
-puts path_index
+# puts path_index
 
 paths_seen = Set.new
 
-# Write initial file header, version, copyright, etc.
+def include_path(ps, pa, pi, p)
+  context, _, file = p.rpartition('/')
+  pa = pa.delete(p)
+  puts "/******* BEGIN FILE #{p} *******/"
+  File.foreach(p) do |line|
+    # FIXME: This will break on comments after include directives.
+    hmatch = /#include\s+[<"](.*)[">]/.match(line)
+    # FIXME: This isn't quite right. --headers directories aren't
+    # respected correctly. Really, we need to check this context
+    # plus *all* top level headers directories. This *does*, however,
+    # work if all headers are in the same tree. Not sure what the
+    # best way forward here might be. Ambiguities are always going
+    # to be a thing. It might be easier to just have some kind
+    # of list of explicit header files that count as seen from
+    # their basename, otherwise it will be necessary to handle
+    # multiple potential bases (current context base and alternate
+    # bases). I may already be set up to do that to some extent
+    # with the seemingly useless index I've built (which I won't
+    # delete for now), but in any case it'll be complicated.
+    if hmatch
+      full_path = context + '/' + hmatch[1]
+      if ps.include?(full_path)
+        puts "/* #{hmatch[0]} */"
+      elsif pa.include?(full_path)
+        ps.add(full_path)
+        ps, pa = include_path(ps, pa, pi, full_path)
+      else
+        ps.add(full_path)
+        puts line
+      end
+    else
+      puts line
+    end
+  end
+  puts "/******* END FILE #{p} *******/"
+  [ps, pa]
+end
 
-# Include all --headers files, using process described below.
+must_include.each do |p|
+  if not paths_seen.include?(p)
+    paths_seen.add(p)
+    paths_seen, paths_avail =
+      include_path(paths_seen, paths_avail, path_index, p)
+  end
+end
 
-# Include all source files, using process described below.
+# puts paths_seen
+# puts paths_avail
 
 # When including files:
 #   - If an include statement has not yet been encountered:
