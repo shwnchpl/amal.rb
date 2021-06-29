@@ -39,15 +39,10 @@
 
 require 'optparse'
 
-trees = Hash.new {|h, k| h[k] = []}
+sources = []
+headers = []
 
 ARGV << '--help' if ARGV.empty?
-
-class String
-  def clean_path
-    self.delete_prefix('./').chomp('/')
-  end
-end
 
 OptionParser.new do |opts|
   opts.banner = "Usage: amal.rb [options]"
@@ -57,46 +52,34 @@ OptionParser.new do |opts|
     exit -1
   end
 
-  opts.on("--headers HEADERS", "Include all headers in a tree.") do |headers|
-    if not Dir.exist? headers
-      $stderr.puts "'#{headers}' is not a valid directory."
+  opts.on("--headers HEADERS", "Include all headers in a tree.") do |p|
+    if not Dir.exist?(p)
+      $stderr.puts "'#{p}' is not a valid directory."
       exit -1
     end
-    trees[:headers].append headers.clean_path
+    headers << p.delete_prefix('./').chomp('/')
   end
 
-  opts.on("--src SOURCE", "Include all sources in a tree.") do |source|
-    if not Dir.exist? source
-      $stderr.puts "'#{source}' is not a valid directory."
+  opts.on("--src SOURCE", "Include all sources in a tree.") do |p|
+    if not Dir.exist?(p)
+      $stderr.puts "'#{p}' is not a valid directory."
       exit -1
     end
-    trees[:sources].append source.clean_path
+    sources << p.delete_prefix('./').chomp('/')
   end
 end.parse!
 
 # TODO: Is there a cleaner way to do this?
-# TODO: Should I even be using a hash map for these few options?
-
-could_include = []
-trees[:sources].each do |h|
-  could_include += Dir.glob("#{h}/**/*.h")
-end
-
-must_include = []
-trees[:headers].each do |h|
-  must_include += Dir.glob("#{h}/**/*.h")
-end
-
-trees[:sources].each do |s|
-  must_include += Dir.glob("#{s}/**/*.c")
-end
-
-# Walk --headers and --src trees, making sets and alphabetical
-# (including subdir prefix) lists of all files referenced.
-
 # FIXME: Make this work on non-POSIX systems, to be nice.
 # The main/only issue here is that I'm hardcoding path
 # separator.
+
+could_include = []
+must_include = []
+
+sources.each {|h| could_include += Dir.glob("#{h}/**/*.h")}
+headers.each {|h| must_include += Dir.glob("#{h}/**/*.h")}
+sources.each {|s| must_include += Dir.glob("#{s}/**/*.c")}
 
 paths_avail = Hash[(could_include + must_include).collect {|p| [p, true]}]
 
@@ -104,6 +87,7 @@ def include_path(pa, ht, p)
   context, _, file = p.rpartition('/')
   pa[p] = false
   puts "/******* BEGIN FILE #{p} *******/"
+
   File.foreach(p) do |line|
     # FIXME: This will break on comments after include directives.
     hmatch = /#include\s+[<"](.*)[">]/.match(line)
@@ -136,13 +120,14 @@ def include_path(pa, ht, p)
       puts line
     end
   end
+
   puts "/******* END FILE #{p} *******/"
   pa
 end
 
 must_include.each do |p|
   if paths_avail[p]
-    paths_avail = include_path(paths_avail, trees[:headers], p)
+    paths_avail = include_path(paths_avail, headers, p)
   end
 end
 
