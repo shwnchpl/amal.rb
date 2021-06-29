@@ -44,6 +44,12 @@ trees = Hash.new {|h, k| h[k] = []}
 
 ARGV << '--help' if ARGV.empty?
 
+class String
+  def clean_path
+    self.delete_prefix('./').chomp('/')
+  end
+end
+
 OptionParser.new do |opts|
   opts.banner = "Usage: amal.rb [options]"
 
@@ -57,7 +63,7 @@ OptionParser.new do |opts|
       $stderr.puts "'#{headers}' is not a valid directory."
       exit -1
     end
-    trees[:headers].append headers
+    trees[:headers].append headers.clean_path
   end
 
   opts.on("--src SOURCE", "Include all sources in a tree.") do |source|
@@ -65,35 +71,26 @@ OptionParser.new do |opts|
       $stderr.puts "'#{source}' is not a valid directory."
       exit -1
     end
-    trees[:sources].append source
+    trees[:sources].append source.clean_path
   end
 end.parse!
 
 # TODO: Is there a cleaner way to do this?
 # TODO: Should I even be using a hash map for these few options?
 
-class String
-  def clean_path
-    self.delete_prefix('./').chomp('/')
-  end
-end
-
 could_include = []
 trees[:sources].each do |h|
-  could_include += Dir.glob("#{h.clean_path}/**/*.h")
+  could_include += Dir.glob("#{h}/**/*.h")
 end
 
 must_include = []
 trees[:headers].each do |h|
-  must_include += Dir.glob("#{h.clean_path}/**/*.h")
+  must_include += Dir.glob("#{h}/**/*.h")
 end
 
 trees[:sources].each do |s|
-  must_include += Dir.glob("#{s.clean_path}/**/*.c")
+  must_include += Dir.glob("#{s}/**/*.c")
 end
-
-# puts "Could include:\n\n#{could_include}\n\n"
-# puts "Must include:\n\n#{must_include}\n\n"
 
 # Walk --headers and --src trees, making sets and alphabetical
 # (including subdir prefix) lists of all files referenced.
@@ -102,52 +99,42 @@ end
 # The main/only issue here is that I'm hardcoding path
 # separator.
 
-all_paths = [could_include, must_include].flatten
-paths_avail = Set.new(all_paths)
-
-path_index = Hash.new { |h, k| h[k] = [].to_set }
-all_paths.each do |p|
-  c = ''
-  while p do
-    path_index[p].add(c)
-    t, p = p.split('/', 2)
-    c = c != '' ? c.concat('/', t) : t
-  end
-end
-
-# puts path_index
-
+paths_avail = Set.new(could_include + must_include)
 paths_seen = Set.new
 
-def include_path(ps, pa, pi, p)
+# TODO: Just use a hashmap path->[true|false] true: seen false: unseen
+# instead of two sets?
+
+def include_path(ps, pa, ht, p)
   context, _, file = p.rpartition('/')
   pa = pa.delete(p)
   puts "/******* BEGIN FILE #{p} *******/"
   File.foreach(p) do |line|
     # FIXME: This will break on comments after include directives.
     hmatch = /#include\s+[<"](.*)[">]/.match(line)
-    # FIXME: This isn't quite right. --headers directories aren't
-    # respected correctly. Really, we need to check this context
-    # plus *all* top level headers directories. This *does*, however,
-    # work if all headers are in the same tree. Not sure what the
-    # best way forward here might be. Ambiguities are always going
-    # to be a thing. It might be easier to just have some kind
-    # of list of explicit header files that count as seen from
-    # their basename, otherwise it will be necessary to handle
-    # multiple potential bases (current context base and alternate
-    # bases). I may already be set up to do that to some extent
-    # with the seemingly useless index I've built (which I won't
-    # delete for now), but in any case it'll be complicated.
     if hmatch
-      full_path = context + '/' + hmatch[1]
-      if ps.include?(full_path)
-        puts "/* #{hmatch[0]} */"
-      elsif pa.include?(full_path)
-        ps.add(full_path)
-        ps, pa = include_path(ps, pa, pi, full_path)
-      else
-        ps.add(full_path)
-        puts line
+      handled = false
+      ([context] + ht).each do |c|
+        c = c + '/' if c != ''
+        full_path = c + hmatch[1]
+        if ps.include?(full_path)
+          puts "/* #{hmatch[0]} */"
+          handled = true
+          break
+        elsif pa.include?(full_path)
+          ps.add(full_path)
+          ps, pa = include_path(ps, pa, ht, full_path)
+          handled = true
+          break
+        end
+      end
+      if not handled
+        if not ps.include?(hmatch[1])
+          puts line
+          ps = ps.add(hmatch[1])
+        else
+          puts "/* #{hmatch[0]} */"
+        end
       end
     else
       puts line
@@ -161,12 +148,9 @@ must_include.each do |p|
   if not paths_seen.include?(p)
     paths_seen.add(p)
     paths_seen, paths_avail =
-      include_path(paths_seen, paths_avail, path_index, p)
+      include_path(paths_seen, paths_avail, trees[:headers], p)
   end
 end
-
-# puts paths_seen
-# puts paths_avail
 
 # When including files:
 #   - If an include statement has not yet been encountered:
