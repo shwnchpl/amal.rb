@@ -38,6 +38,7 @@
 #    possible to specify each option more than once.]
 
 require 'optparse'
+require 'set'
 
 trees = Hash.new {|h, k| h[k] = []}
 
@@ -71,18 +72,24 @@ end.parse!
 # TODO: Is there a cleaner way to do this?
 # TODO: Should I even be using a hash map for these few options?
 
+class String
+  def clean_path
+    self.delete_prefix('./').chomp('/')
+  end
+end
+
 could_include = []
 trees[:sources].each do |h|
-  could_include += Dir.glob("#{h.chomp '/'}/**/*.h")
+  could_include += Dir.glob("#{h.clean_path}/**/*.h")
 end
 
 must_include = []
 trees[:headers].each do |h|
-  must_include += Dir.glob("#{h.chomp '/'}/**/*.h")
+  must_include += Dir.glob("#{h.clean_path}/**/*.h")
 end
 
 trees[:sources].each do |s|
-  must_include += Dir.glob("#{s.chomp '/'}/**/*.c")
+  must_include += Dir.glob("#{s.clean_path}/**/*.c")
 end
 
 puts "Could include:\n\n#{could_include}\n\n"
@@ -90,6 +97,27 @@ puts "Must include:\n\n#{must_include}\n\n"
 
 # Walk --headers and --src trees, making sets and alphabetical
 # (including subdir prefix) lists of all files referenced.
+
+# FIXME: Make this work on non-POSIX systems, to be nice.
+# The main/only issue here is that I'm hardcoding path
+# separator.
+
+all_paths = [could_include, must_include].flatten
+paths_avail = Set.new(all_paths)
+
+path_index = Hash.new { |h, k| h[k] = [].to_set }
+all_paths.each do |p|
+  c = ''
+  while p do
+    path_index[p].add(c)
+    t, p = p.split('/', 2)
+    c = c != '' ? c.concat('/', t) : t
+  end
+end
+
+puts path_index
+
+paths_seen = Set.new
 
 # Write initial file header, version, copyright, etc.
 
