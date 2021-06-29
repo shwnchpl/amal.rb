@@ -38,7 +38,6 @@
 #    possible to specify each option more than once.]
 
 require 'optparse'
-require 'set'
 
 trees = Hash.new {|h, k| h[k] = []}
 
@@ -99,39 +98,36 @@ end
 # The main/only issue here is that I'm hardcoding path
 # separator.
 
-paths_avail = Set.new(could_include + must_include)
-paths_seen = Set.new
+paths_avail = Hash[(could_include + must_include).collect {|p| [p, true]}]
 
-# TODO: Just use a hashmap path->[true|false] true: seen false: unseen
-# instead of two sets?
-
-def include_path(ps, pa, ht, p)
+def include_path(pa, ht, p)
   context, _, file = p.rpartition('/')
-  pa = pa.delete(p)
+  pa[p] = false
   puts "/******* BEGIN FILE #{p} *******/"
   File.foreach(p) do |line|
     # FIXME: This will break on comments after include directives.
     hmatch = /#include\s+[<"](.*)[">]/.match(line)
     if hmatch
       handled = false
+
       ([context] + ht).each do |c|
         c = c + '/' if c != ''
         full_path = c + hmatch[1]
-        if ps.include?(full_path)
-          puts "/* #{hmatch[0]} */"
-          handled = true
-          break
-        elsif pa.include?(full_path)
-          ps.add(full_path)
-          ps, pa = include_path(ps, pa, ht, full_path)
+        if pa.include?(full_path)
+          if pa[full_path]
+            pa = include_path(pa, ht, full_path)
+          else
+            puts "/* #{hmatch[0]} */"
+          end
           handled = true
           break
         end
       end
+
       if not handled
-        if not ps.include?(hmatch[1])
+        if not pa.include?(hmatch[1])
           puts line
-          ps = ps.add(hmatch[1])
+          pa[hmatch[1]] = false
         else
           puts "/* #{hmatch[0]} */"
         end
@@ -141,14 +137,12 @@ def include_path(ps, pa, ht, p)
     end
   end
   puts "/******* END FILE #{p} *******/"
-  [ps, pa]
+  pa
 end
 
 must_include.each do |p|
-  if not paths_seen.include?(p)
-    paths_seen.add(p)
-    paths_seen, paths_avail =
-      include_path(paths_seen, paths_avail, trees[:headers], p)
+  if paths_avail[p]
+    paths_avail = include_path(paths_avail, trees[:headers], p)
   end
 end
 
