@@ -1,7 +1,7 @@
 #include "foo.h"
-#include "top-level.h"
+#include "top-level.h" /* yeah okay */
 
-#include <stdio.h>
+#include <stdio.h> // foo
 
 int main(void)
 {
