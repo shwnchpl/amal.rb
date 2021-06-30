@@ -29,6 +29,11 @@ this output.
 
 Does not currently support C++ source files.
 
+Example
+-------
+
+For sample input and output, please see the sample directory.
+
 Hacking
 -------
 
