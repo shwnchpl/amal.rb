@@ -32,9 +32,20 @@
 # Output:
 #   [An amalgamated C source file].
 #
-# Each option may be specified more than once.
+# Each option may be specified more than once. All C source files
+# ending in .c in directory trees specified by --src options are
+# included in the output in lexicographic order based on their fully
+# qualified relative or absolute path (whichever is specified). All
+# C header files ending in .h in directory trees specified by --headers
+# are included *before* C source files in the output, in the same sort
+# of lexicographic order as C source files. C header files ending in
+# .h found in trees specified by --src are included if and only if they
+# are referenced in some unconditionally included file.
 #
-# TODO: Add real usage notes.
+# Output is dumped to stdout. To write to a file instead, simply
+# redirect this output.
+#
+# Does not currently support C++ source files.
 #######################################################################
 
 require 'optparse'
