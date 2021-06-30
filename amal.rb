@@ -49,6 +49,7 @@
 #######################################################################
 
 require 'optparse'
+require 'time'
 
 sources = []
 headers = []
@@ -133,8 +134,20 @@ def include_path(pa, ht, p)
   pa
 end
 
+puts %{\
+/********************************************************************
+*          AMALGAMATED BY amal.rb AT #{Time.now.utc.iso8601}           *
+*********************************************************************/\n
+}
+
 must_include.each do |p|
   if paths_avail[p]
     paths_avail = include_path(paths_avail, headers, p)
   end
 end
+
+puts %{
+/********************************************************************
+*                    END amal.rb AMALGAMATED CODE                   *
+*********************************************************************/
+}
