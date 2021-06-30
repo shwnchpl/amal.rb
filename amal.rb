@@ -69,9 +69,6 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-# FIXME: Make this work on non-POSIX systems, to be nice. The main/only
-# issue here is that I'm hardcoding path separator.
-
 could_include = []
 must_include = []
 
@@ -87,7 +84,9 @@ def include_path(pa, ht, p)
   puts "/******* BEGIN FILE #{p} *******/"
 
   File.foreach(p) do |line|
-    # FIXME: This will break on comments after include directives.
+    # XXX: This discards comments after include directives, mainly
+    # because it is not safe to wrap such comments and doing otherwise
+    # would introduce unnecessary complexity.
     hmatch = /#include\s+[<"](.*)[">]/.match(line)
     if hmatch
       handled = false
