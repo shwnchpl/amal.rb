@@ -23,55 +23,131 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #######################################################################
 
-# Something similar to mksqlite3c.tcl, but hopefully slightly more
-# flexible. Just an outline to start.
-
-# Projected usage:
+#######################################################################
+# Similar to mksqlite3c.tcl, but hopefully slightly more flexible.
+#
+# Usage:
 #   $ amal.rb --headers ./include --src ./src
 #
 # Output:
-#   [An amalgamated source file including all project local headers
-#    inline and include directives for each other header only once,
-#    as described below. This should include all .c source files in
-#    all trees from the specified directories. For --headers
-#    directories, include all header files as well. It should be
-#    possible to specify each option more than once.]
+#   [an amalgamated C source file]
+#
+# Each option may be specified more than once. All C source files
+# ending in .c in directory trees specified by --src options are
+# included in the output in lexicographic order based on their fully
+# qualified relative or absolute path (whichever is specified). All
+# C header files ending in .h in directory trees specified by --headers
+# are included *before* C source files in the output, in the same sort
+# of lexicographic order as C source files. C header files ending in
+# .h found in trees specified by --src are included if and only if they
+# are referenced in some unconditionally included file.
+#
+# Output is dumped to stdout. To write to a file instead, simply
+# redirect this output.
+#
+# Does not currently support C++ source files.
+#######################################################################
 
-# Walk --headers and --src trees, making sets and alphabetical
-# (including subdir prefix) lists of all files referenced.
+require 'optparse'
+require 'time'
 
-# Write initial file header, version, copyright, etc.
+sources = []
+headers = []
 
-# Include all --headers files, using process described below.
+ARGV << '--help' if ARGV.empty?
 
-# Include all source files, using process described below.
+OptionParser.new do |opts|
+  opts.banner = "Usage: amal.rb [options]"
 
-# When including files:
-#   - If an include statement has not yet been encountered:
-#       - If we have a file to include in our trees, include it inline
-#         if it has not been marked as included in our hash under some
-#         other path prefix.
-#       - Else, leave the include statement.
-#   - Else, comment out include statement.
-#   - Just before a file is included, a comment header indicating the
-#     path of the file, relative to root, should appear. After the full
-#     text of the file has been included, another comment indicating
-#     the end of the file should appear.
-#   - Add included file path to list of seen includes and also
-#     mark as seen in our hash.
+  opts.on('-h', '--help', "Display this help.") do
+    $stderr.puts opts
+    exit -1
+  end
 
-# Potential challenge:
-#   - The following two include statements reference the same file:
-#       - From foo/bar.c, #include "bas/quux.h"
-#       - From foo/bas/quuz.c, #include "quux.h"
-#     Beyond that, this tool doesn't really know what directories are
-#     being searched for headers in general.
-# Possible solutions:
-#   - Do as gcc would and implicitly realize that for a file in some
-#     given directory, an include statement searches in subdirectories
-#     of that directory (as well as that current directory)
-#     automatically when the appropriate prefix is specified. In
-#     theory, it shouldn't be terribly difficult to keep track of
-#     whether files in trees we're managing at least have already been
-#     included.
-#   - Simply don't handle this correctly.
+  opts.on("--headers HEADERS", "Include all headers in a tree.") do |p|
+    if not Dir.exist?(p)
+      $stderr.puts "'#{p}' is not a valid directory."
+      exit -1
+    end
+    headers << p.delete_prefix('./').chomp('/')
+  end
+
+  opts.on("--src SOURCE", "Include all sources in a tree.") do |p|
+    if not Dir.exist?(p)
+      $stderr.puts "'#{p}' is not a valid directory."
+      exit -1
+    end
+    sources << p.delete_prefix('./').chomp('/')
+  end
+end.parse!
+
+could_include = []
+must_include = []
+
+sources.each {|h| could_include += Dir.glob("#{h}/**/*.h")}
+headers.each {|h| must_include += Dir.glob("#{h}/**/*.h")}
+sources.each {|s| must_include += Dir.glob("#{s}/**/*.c")}
+
+paths_avail = Hash[(could_include + must_include).collect {|p| [p, true]}]
+
+def include_path(pa, ht, p)
+  context, _, file = p.rpartition('/')
+  pa[p] = false
+  puts "/******* BEGIN FILE #{p} *******/"
+
+  File.foreach(p) do |line|
+    # XXX: This discards comments after include directives, mainly
+    # because it is not safe to wrap such comments and doing otherwise
+    # would introduce unnecessary complexity.
+    hmatch = /#include\s+[<"](.*)[">]/.match(line)
+    if hmatch
+      handled = false
+
+      ([context] + ht).each do |c|
+        c = c + '/' if c != ''
+        full_path = c + hmatch[1]
+        if pa.include?(full_path)
+          if pa[full_path]
+            pa = include_path(pa, ht, full_path)
+          else
+            puts "/* #{hmatch[0]} */"
+          end
+          handled = true
+          break
+        end
+      end
+
+      if not handled
+        if not pa.include?(hmatch[1])
+          puts line
+          pa[hmatch[1]] = false
+        else
+          puts "/* #{hmatch[0]} */"
+        end
+      end
+    else
+      puts line
+    end
+  end
+
+  puts "/******* END FILE #{p} *******/"
+  pa
+end
+
+puts %{\
+/********************************************************************
+*          AMALGAMATED BY amal.rb AT #{Time.now.utc.iso8601}           *
+*********************************************************************/\n
+}
+
+must_include.each do |p|
+  if paths_avail[p]
+    paths_avail = include_path(paths_avail, headers, p)
+  end
+end
+
+puts %{
+/********************************************************************
+*                    END amal.rb AMALGAMATED CODE                   *
+*********************************************************************/
+}
