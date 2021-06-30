@@ -30,7 +30,7 @@
 #   $ amal.rb --headers ./include --src ./src
 #
 # Output:
-#   [An amalgamated C source file].
+#   [an amalgamated C source file]
 #
 # Each option may be specified more than once. All C source files
 # ending in .c in directory trees specified by --src options are

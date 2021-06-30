@@ -1,7 +1,8 @@
 amal.rb
 =======
 
-A simple tool to generate an amalgamated C source file.
+A simple tool to generate amalgamated C source files, inspired by the
+SQLite amalgamation.
 
 Usage
 -----
@@ -12,7 +13,7 @@ Usage::
 
 Output::
 
-  [An amalgamated C source file].
+  [an amalgamated C source file]
 
 Each option may be specified more than once. All C source files ending
 in .c in directory trees specified by --src options are included in the
@@ -28,6 +29,15 @@ Output is dumped to stdout. To write to a file instead, simply redirect
 this output.
 
 Does not currently support C++ source files.
+
+Why?
+----
+
+If it makes sense for SQLite, it may make sense for your project too.
+Amalgamated source files are easy to distribute and are easier for some
+compilers to optimize (when compared to projects comprised of several
+translation units). For more details, see `"The SQLite Amalgamation"
+<https: //sqlite.org/amalgamation.html>`_.
 
 Example
 -------
