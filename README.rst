@@ -25,10 +25,21 @@ files. C header files ending in .h found in trees specified by --src are
 included if and only if they are referenced in some unconditionally
 included file.
 
+It is critical to note that amal.rb makes no effort to understand any
+preprocessor directives aside from include statements. This means that
+if your include statement is within some sort of ``ifdef`` guard and
+meant to only occur when some condition is satisfied, the file will be
+included and/or treated as having been included by amal.rb. At this
+point, amal.rb will only function correctly in cases where include
+directives occur conditionally when those include directives are only
+necessary *across the entire project* when the ignored (by amal.rb)
+conditions are satisfied. Basically, if you want to use amal.rb, don't
+include the same headers conditionally under different conditions (or
+conditionally and unconditionally) within the same project. For now, at
+least.
+
 Output is dumped to stdout. To write to a file instead, simply redirect
 this output.
-
-Does not currently support C++ source files.
 
 Why?
 ----
