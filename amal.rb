@@ -47,6 +47,7 @@
 #######################################################################
 
 require 'optparse'
+require 'pathname'
 require 'time'
 
 sources = []
@@ -103,7 +104,7 @@ def include_path(pa, ht, p)
 
       ([context] + ht).each do |c|
         c = c + '/' if c != ''
-        full_path = c + hmatch[1]
+        full_path = Pathname.new(c + hmatch[1]).cleanpath.to_s
         if pa.include?(full_path)
           if pa[full_path]
             pa = include_path(pa, ht, full_path)
